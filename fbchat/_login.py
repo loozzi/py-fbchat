@@ -1,6 +1,8 @@
+from typing import Any
+
 import requests
 
-from ._utils import parse_cookies_to_map, randStr
+from ._utils import get2FaCode, parse_cookies_to_map, randStr
 
 
 class Login:
@@ -56,10 +58,50 @@ class Login:
         self.dataForm["api_key"] = "882a8490361da98702bf97a021ddc14d"
         self.dataForm["access_token"] = "350685531728|62f8ce9f74b12f84c123cc23437a4a32"
 
-    def by_cookies(self, cookies: str) -> None:
+    def by_cookies(self, cookies: str) -> bool:
         self.__session__.cookies.update(parse_cookies_to_map(cookies))
+        return self.is_logged_in()
 
-    def by_user_pass(self, email: str, password: str) -> None:
+    def by_user_pass(self, email: str, password: str) -> bool:
+        response = self.__login__(email, password)
+        dataJson = response.json()
+
+        if dataJson.get("error") is not None:
+            if dataJson["error"]["error_subcode"] == 1348162:
+                code2fa = input("Enter 2FA code: ")
+                self.__login_by_2fa__(dataJson, code2fa)
+            else:
+                raise Exception(dataJson["error"]["message"])
+        else:
+            cookies = response.json()["session_cookies"]
+            self.__set_cookies__(cookies)
+
+        return self.is_logged_in()
+
+    def by_user_pass_2fa(self, email: str, password: str, twoFactorCode: str) -> bool:
+        response = self.__login__(email, password)
+        dataJson = response.json()
+
+        if dataJson.get("error") is not None:
+            if dataJson["error"]["error_subcode"] == 1348162:
+                print("Featching 2FA code...")
+                code2fa = self.__get_two_factor_code__(twoFactorCode)
+                self.__login_by_2fa__(dataJson, code2fa)
+            else:
+                raise Exception(dataJson["error"]["message"])
+        else:
+            cookies = response.json()["session_cookies"]
+            self.__set_cookies__(cookies)
+
+        return self.is_logged_in()
+
+    def is_logged_in(self) -> bool:
+        response = self.__session__.get(
+            "https://www.facebook.com/login/", allow_redirects=True
+        )
+        return response.url == "https://www.facebook.com/home.php"
+
+    def __login__(self, email: str, password: str) -> requests.Response:
         self.dataForm["email"] = email
         self.dataForm["password"] = password
 
@@ -69,56 +111,34 @@ class Login:
             data=self.dataForm,
         )
 
+        return response
+
+    def __login_by_2fa__(self, dataJson: Any, code2fa: str) -> None:
+        self.dataForm["try_num"] = "2"
+        self.dataForm["credentials_type"] = "two_factor"
+        self.dataForm["twofactor_code"] = code2fa
+        self.dataForm["userid"] = dataJson["error"]["error_data"]["uid"]
+        self.dataForm["first_factor"] = dataJson["error"]["error_data"][
+            "login_first_factor"
+        ]
+        response = self.__session__.post(
+            "https://b-graph.facebook.com/auth/login",
+            headers=self.headers,
+            data=self.dataForm,
+        )
         dataJson = response.json()
         if dataJson.get("error") is not None:
-            if dataJson["error"]["error_subcode"] == 1348162:
-                self.dataForm["password"] = input("Enter 2FA code: ")
-                self.dataForm["try_num"] = "2"
-                response = self.__session__.post(
-                    "https://b-graph.facebook.com/auth/login",
-                    headers=self.headers,
-                    data=self.dataForm,
-                )
-                dataJson = response.json()
-                if dataJson.get("error") is not None:
-                    raise Exception(dataJson["error"]["message"])
-            else:
-                raise Exception(dataJson["error"]["message"])
+            raise Exception(dataJson["error"]["message"])
         else:
             cookies = response.json()["session_cookies"]
-            cookies_map = {}
-            for ck in cookies:
-                cookies_map[ck["name"]] = ck["value"]
+            self.__set_cookies__(cookies)
 
-            self.__session__.cookies.update(cookies_map)
+    def __set_cookies__(self, cookies: Any):
+        cookies_map = {}
+        for ck in cookies:
+            cookies_map[ck["name"]] = ck["value"]
 
-    def by_user_pass_2fa(self, email: str, password: str, twoFactorCode: str) -> None:
-        self.__session__.post(
-            "https://b-graph.facebook.com/auth/login",
-            data={
-                "email": email,
-                "pass": password,
-                "m_ts": "0",
-                "li": "0",
-                "try_number": "0",
-                "unrecognized_tries": "0",
-                "login_try_number": "0",
-                "prefill_contact_point": email,
-                "prefill_source": "browser_onload",
-                "prefill_type": "contact_point",
-                "first_contact_point": "",
-                "first_prefill_source": "",
-                "first_prefill_type": "",
-                "had_cp_prefilled": "false",
-                "had_password_prefilled": "false",
-                "is_smart_lock": "false",
-                "bi_xrwh": "0",
-                "bi_xrwh_rc": "",
-            },
-        )
+        self.__session__.cookies.update(cookies_map)
 
-    def is_logged_in(self) -> bool:
-        response = self.__session__.get(
-            "https://www.facebook.com/login/", allow_redirects=True
-        )
-        return response.url == "https://www.facebook.com/home.php"
+    def __get_two_factor_code__(self, twoFactorCode: str) -> str:
+        return get2FaCode(twoFactorCode)
