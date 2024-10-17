@@ -2,12 +2,15 @@ from typing import Any
 
 import requests
 
+from ._session import Session
 from ._utils import get2FaCode, parse_cookies_to_map, randStr
 
 
-class Login:
-    def __init__(self, session: requests.Session) -> None:
-        self.__session__ = session
+class Auth:
+    def __init__(self, session: Session) -> None:
+        self.__session__ = session.__session__
+        self.session = session
+
         self.deviceId = self.adId = self.secureFamilyDeviceId = (
             f"{randStr(8)}-{randStr(4)}-{randStr(4)}-{randStr(4)}-{randStr(12)}"
         )
@@ -18,7 +21,9 @@ class Login:
         self.headers["Content-Type"] = "application/x-www-form-urlencoded"
         self.headers["X-Fb-Connection-Type"] = "unknown"
         self.headers["User-Agent"] = (
-            "Dalvik/2.1.0 (Linux; U; Android 7.1.2; SM-G988N Build/NRD90M) [FBAN/FB4A;FBAV/340.0.0.27.113;FBPN/com.facebook.katana;FBLC/vi_VN;FBBV/324485361;FBCR/Viettel Mobile;FBMF/samsung;FBBD/samsung;FBDV/SM-G988N;FBSV/7.1.2;FBCA/x86:armeabi-v7a;FBDM/{density=1.0,width=540,height=960};FB_FW/1;FBRV/0;]"
+            "Dalvik/2.1.0 (Linux; U; Android 7.1.2; SM-G988N Build/NRD90M) [FBAN/FB4A;FBAV/340.0.0.27.113;FBPN/\
+                com.facebook.katana;\FBLC/vi_VN;FBBV/324485361;FBCR/Viettel Mobile;FBMF/samsung;FBBD/samsung;FBDV/\
+                    SM-G988N;FBSV/7.1.2;FBCA/x86:armeabi-v7a;FBDM/{density=1.0,width=540,height=960};FB_FW/1;FBRV/0;]"
         )
         self.headers["X-Fb-Connection-Quality"] = "EXCELLENT"
         self.headers["Authorization"] = "OAuth null"
@@ -58,11 +63,11 @@ class Login:
         self.dataForm["api_key"] = "882a8490361da98702bf97a021ddc14d"
         self.dataForm["access_token"] = "350685531728|62f8ce9f74b12f84c123cc23437a4a32"
 
-    def by_cookies(self, cookies: str) -> bool:
+    def with_cookies(self, cookies: str) -> bool:
         self.__session__.cookies.update(parse_cookies_to_map(cookies))
         return self.is_logged_in()
 
-    def by_user_pass(self, email: str, password: str) -> bool:
+    def with_credentials(self, email: str, password: str) -> bool:
         response = self.__login__(email, password)
         dataJson = response.json()
 
@@ -78,14 +83,16 @@ class Login:
 
         return self.is_logged_in()
 
-    def by_user_pass_2fa(self, email: str, password: str, twoFactorCode: str) -> bool:
+    def with_credentials_2fa(
+        self, email: str, password: str, twoFactorCode: str
+    ) -> bool:
         response = self.__login__(email, password)
         dataJson = response.json()
 
         if dataJson.get("error") is not None:
             if dataJson["error"]["error_subcode"] == 1348162:
                 print("Featching 2FA code...")
-                code2fa = self.__get_two_factor_code__(twoFactorCode)
+                code2fa = get2FaCode(twoFactorCode)
                 self.__login_by_2fa__(dataJson, code2fa)
             else:
                 raise Exception(dataJson["error"]["message"])
@@ -96,10 +103,7 @@ class Login:
         return self.is_logged_in()
 
     def is_logged_in(self) -> bool:
-        response = self.__session__.get(
-            "https://www.facebook.com/login/", allow_redirects=True
-        )
-        return response.url == "https://www.facebook.com/home.php"
+        return self.session.is_logged_in()
 
     def __login__(self, email: str, password: str) -> requests.Response:
         self.dataForm["email"] = email
@@ -138,7 +142,4 @@ class Login:
         for ck in cookies:
             cookies_map[ck["name"]] = ck["value"]
 
-        self.__session__.cookies.update(cookies_map)
-
-    def __get_two_factor_code__(self, twoFactorCode: str) -> str:
-        return get2FaCode(twoFactorCode)
+        self.session.__set_cookies__(cookies_map)
