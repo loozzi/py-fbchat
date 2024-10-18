@@ -1,7 +1,5 @@
 from typing import Any, Iterable, Tuple
 
-from .._enums import MessageType
-
 
 class Message:
     def __init__(self, client) -> None:
@@ -17,7 +15,7 @@ class Message:
         mentions: Any = None,
         files: Iterable[Tuple[str, str]] = None,
         reply_to_id: str = None,
-        type: MessageType = MessageType.USER,
+        type: str = "user",
     ) -> str:
         data = {}
         data["action_type"] = "ma-type:user-generated-message"
@@ -26,7 +24,7 @@ class Message:
 
         # TODO: Implement mentions here
 
-        if type == MessageType.USER:
+        if type == "user":
             if isinstance(thread_id, list):
                 for i, thread_id in enumerate(thread_id):
                     data["specific_to_list[" + str(i) + "]"] = "fbid:" + thread_id

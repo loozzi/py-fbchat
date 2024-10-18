@@ -1,7 +1,7 @@
 import json
 import queue
 import threading
-from typing import List
+from typing import Any, List
 
 import requests
 
@@ -9,6 +9,7 @@ from ._auth import Auth
 from ._listen import Listen
 from ._session import Session
 from ._utils import generate_client_id, generate_session_id
+from .models._message import Message
 
 
 class Client:
@@ -17,6 +18,7 @@ class Client:
         self.auth = Auth(self.session)
         self.client_id = generate_client_id()
         self.session_id = generate_session_id()
+        self.message = Message(self)
 
     def get_session(self) -> requests.Session:
         return self.session.__session__
@@ -93,3 +95,18 @@ class Client:
         threading.Thread(target=main_event.listen, args=(q,)).start()
 
         return q
+
+    def send_message(self, text: str, message: Any):
+        self.message.send_text(
+            text=text, thread_id=message["userId"], type=message["type"]
+        )
+        return True
+
+    def reply_message(self, text: str, message: Any):
+        self.message.send_text(
+            text=text,
+            thread_id=message["userId"],
+            reply_to_id=message["messageId"],
+            type=message["type"],
+        )
+        return True
