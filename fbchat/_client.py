@@ -1,16 +1,22 @@
 import json
+import queue
+import threading
 from typing import List
 
 import requests
 
 from ._auth import Auth
+from ._listen import Listen
 from ._session import Session
+from ._utils import generate_client_id, generate_session_id
 
 
 class Client:
     def __init__(self) -> None:
         self.session = Session()
         self.auth = Auth(self.session)
+        self.client_id = generate_client_id()
+        self.session_id = generate_session_id()
 
     def get_session(self) -> requests.Session:
         return self.session.__session__
@@ -58,6 +64,9 @@ class Client:
         )
         response_text = response.text.split('{"successful_results"')[0]
         response_json = json.loads(response_text)
+        self.session._sequence_id = response_json["o0"]["data"]["viewer"][
+            "message_threads"
+        ]["sync_sequence_id"]
         return response_json["o0"]["data"]["viewer"]["message_threads"]["nodes"]
 
     def fetch_threads(self):
@@ -72,3 +81,15 @@ class Client:
                 thread_names.append(thread_name)
 
         return {"thread_ids": thread_ids, "thread_names": thread_names}
+
+    def listen(self) -> queue.Queue:
+        """
+        Listen to messages from the client's Facebook account.
+        Returns a queue.Queue object that contains the messages.
+        """
+        main_event = Listen(self)
+        main_event.get_last_seq_id()
+        q = main_event.create_queue()
+        threading.Thread(target=main_event.listen, args=(q,)).start()
+
+        return q

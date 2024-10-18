@@ -36,6 +36,19 @@ class Session:
         """
         return self.__session__.cookies.get_dict()
 
+    def get_cookies_as_string(self) -> str:
+        """Retrieve session cookies as a string.
+
+        Returns:
+            A string containing session cookies
+
+        Example:
+            >>> cookies = session.get_cookies_as_string()
+        """
+        return "; ".join(
+            f"{key}={value}" for key, value in self.__session__.cookies.items()
+        )
+
     def get_params(
         self,
         doc_id: Any = None,
