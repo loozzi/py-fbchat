@@ -38,3 +38,19 @@ def get2FaCode(key2fa: str) -> str:
         return twoFaRequests["token"]
     except:
         return str(random.randint(100000, 999999))
+
+
+def base36encode(number: int) -> str:
+    """Convert from Base10 to Base36."""
+    # Taken from https://en.wikipedia.org/wiki/Base36#Python_implementation
+    chars = "0123456789abcdefghijklmnopqrstuvwxyz"
+
+    sign = "-" if number < 0 else ""
+    number = abs(number)
+    result = ""
+
+    while number > 0:
+        number, remainder = divmod(number, 36)
+        result = chars[remainder] + result
+
+    return sign + result
