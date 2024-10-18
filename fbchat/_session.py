@@ -1,9 +1,17 @@
+import json
 import random
 from typing import Any, Mapping
 
 import requests
 
-from ._utils import base36encode, session_factory
+from ._utils import (
+    base36encode,
+    datetime_to_millis,
+    generate_message_id,
+    generate_offline_threading_id,
+    now,
+    session_factory,
+)
 
 
 def client_id_factory() -> str:
@@ -150,3 +158,39 @@ class Session:
             return r
         except requests.RequestException as e:
             raise Exception(e)
+
+    def _do_send_request(self, data):
+        time_now = now()
+
+        offline_threading_id = generate_offline_threading_id()
+        data["client"] = "mercury"
+        data["author"] = "fbid:{}".format(self._user_id)
+        data["timestamp"] = datetime_to_millis(time_now)
+        data["timestamp_absolute"] = "Today"
+        data["source"] = "source:chat:web"
+        data["source_tags[0]"] = "source:chat"
+        data["client_thread_id"] = "root:{}".format(self._client_id)
+        data["offline_threading_id"] = offline_threading_id
+        data["message_id"] = offline_threading_id
+        data["threading_id"] = generate_message_id(time_now, self._client_id)
+        data["ephemeral_ttl_mode:"] = "0"
+        data["manual_retry_cnt"] = "0"
+        data["ui_push_phase"] = "V3"
+
+        j = self._post(
+            "https://www.facebook.com/messaging/send/", data, as_graphql=False
+        )
+
+        try:
+            j = json.loads(j.text.replace("for (;;);", ""))
+            message_ids = [
+                (action["message_id"], action["thread_fbid"])
+                for action in j["payload"]["actions"]
+                if "message_id" in action
+            ]
+            if len(message_ids) != 1:
+                print("Got multiple message ids' back: {}".format(message_ids))
+            return message_ids[0]
+        except (KeyError, IndexError, TypeError) as e:
+            print("No message IDs could be found", data=j)
+            print(e)

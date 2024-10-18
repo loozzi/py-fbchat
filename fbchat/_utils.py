@@ -1,3 +1,4 @@
+import datetime
 import json
 import random
 import string
@@ -74,3 +75,35 @@ def generate_client_id():
 def json_minimal(data: Any) -> str:
     """Get JSON data in minimal form."""
     return json.dumps(data, separators=(",", ":"))
+
+
+def now() -> datetime.datetime:
+    """The current time.
+
+    Similar to datetime.datetime.now(), but returns a non-naive datetime.
+    """
+    return datetime.datetime.now(tz=datetime.timezone.utc)
+
+
+def generate_offline_threading_id() -> str:
+    ret = datetime_to_millis(now())
+    value = int(random.random() * 4294967295)
+    string = ("0000000000000000000000" + format(value, "b"))[-22:]
+    msgs = format(ret, "b") + string
+    return str(int(msgs, 2))
+
+
+def datetime_to_millis(dt: datetime.datetime) -> int:
+    """Convert a datetime to an UTC timestamp, in milliseconds.
+
+    Naive datetime objects are presumed to represent time in the system timezone.
+
+    The returned milliseconds will be rounded to the nearest whole number.
+    """
+    return round(dt.timestamp() * 1000)
+
+
+def generate_message_id(now: datetime.datetime, client_id: str) -> str:
+    k = datetime_to_millis(now)
+    l = int(random.random() * 4294967295)
+    return "<{}:{}-{}@mail.projektitan.com>".format(k, l, client_id)
