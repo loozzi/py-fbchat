@@ -159,7 +159,7 @@ class Session:
         except requests.RequestException as e:
             raise Exception(e)
 
-    def _do_send_request(self, data):
+    def _do_send_request(self, data) -> requests.Response:
         time_now = now()
 
         offline_threading_id = generate_offline_threading_id()
@@ -190,7 +190,7 @@ class Session:
             ]
             if len(message_ids) != 1:
                 print("Got multiple message ids' back: {}".format(message_ids))
-            return message_ids[0]
+            return j
         except (KeyError, IndexError, TypeError) as e:
             print("No message IDs could be found", data=j)
             print(e)

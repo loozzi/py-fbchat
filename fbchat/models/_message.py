@@ -1,4 +1,9 @@
+import json
 from typing import Any, Iterable, Tuple
+
+import requests
+
+from .._enums import ReactionType
 
 
 class Message:
@@ -16,7 +21,7 @@ class Message:
         files: Iterable[Tuple[str, str]] = None,
         reply_to_id: str = None,
         type: str = "user",
-    ) -> str:
+    ) -> requests.Response:
         data = {}
         data["action_type"] = "ma-type:user-generated-message"
         if text is not None:
@@ -49,11 +54,37 @@ class Message:
 
         return self.client.session._do_send_request(data)
 
-    def send_emoji(self, emoji: str, size: Any) -> str:
+    def send_emoji(self, emoji: str, size: Any) -> requests.Response:
         pass
 
-    def send_sticker(self, sticker_id: str) -> str:
+    def send_sticker(self, sticker_id: str) -> requests.Response:
         pass
 
-    def send_files(self, files: Any, message: str) -> str:
+    def send_files(self, files: Any, message: str) -> requests.Response:
         return self.send_text(text=message, files=files)
+
+    def reply_reaction(
+        self, message_id: str, reaction: str, action: ReactionType = ReactionType.ADD
+    ) -> requests.Response:
+        data = {}
+        data["variables"] = json.dumps(
+            {
+                "data": {
+                    "action": action.value,
+                    "client_mutation_id": "1",
+                    "actor_id": self.client.session._user_id,
+                    "message_id": message_id,
+                    "reaction": reaction,
+                }
+            }
+        )
+        # random.choice(["🥺","😏", "✅","😎","😭", "🫥", "✈️", "✅", "🌚", "😵", "😮‍💨", "😷", "🥹", "😒", "🐧",
+        # "💩", "🍦", "👀", "💀", "🐣", "💔", "🫶🏻", "🪐", "🙈", "🐈‍⬛", "🦆", "🔪", "⚙️", "🧭", "📡", "💌", "⁉️", "💀"])
+        data["dpr"] = 1
+        data["doc_id"] = "1491398900900362"
+
+        return self.client.session._post(
+            "https://www.facebook.com/webgraphql/mutation/",
+            data=data,
+            as_graphql=0,
+        )
