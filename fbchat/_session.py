@@ -1,6 +1,6 @@
 import json
 import random
-from typing import Any, Mapping
+from typing import Any, Mapping, Tuple
 
 import requests
 
@@ -148,18 +148,23 @@ class Session:
     def __set_cookies__(self, cookies: Mapping[str, str]) -> None:
         self.__session__.cookies.update(cookies)
 
-    def _post(self, url, data, files=None, as_graphql=None) -> requests.Response:
+    def _post(self, url, data, files=None, as_graphql=None) -> dict | requests.Response:
         data.update(self.get_params(require_graphql=as_graphql))
         try:
             r = self.__session__.post(url, data=data, files=files)
             r.encoding = "utf-8"
             if r.text is None or len(r.text) == 0:
                 raise Exception("Error when sending request: Got empty response")
+            if "for (;;);" in r.text:
+                response_json = json.loads(r.text.replace("for (;;);", ""))
+                if "error" in r:
+                    raise Exception("Error: {}".format(r["error"]))
+                return response_json
             return r
         except requests.RequestException as e:
             raise Exception(e)
 
-    def _do_send_request(self, data) -> requests.Response:
+    def _do_send_request(self, data) -> Tuple[str, str]:
         time_now = now()
 
         offline_threading_id = generate_offline_threading_id()
@@ -177,20 +182,18 @@ class Session:
         data["manual_retry_cnt"] = "0"
         data["ui_push_phase"] = "V3"
 
-        j = self._post(
+        response = self._post(
             "https://www.facebook.com/messaging/send/", data, as_graphql=False
         )
-
-        try:
-            j = json.loads(j.text.replace("for (;;);", ""))
+        if isinstance(response, dict):
             message_ids = [
                 (action["message_id"], action["thread_fbid"])
-                for action in j["payload"]["actions"]
+                for action in response["payload"]["actions"]
                 if "message_id" in action
             ]
             if len(message_ids) != 1:
                 print("Got multiple message ids' back: {}".format(message_ids))
-            return j
-        except (KeyError, IndexError, TypeError) as e:
-            print("No message IDs could be found", data=j)
-            print(e)
+            return message_ids[0]
+        else:
+            print("No message IDs could be found", data=response)
+            return None

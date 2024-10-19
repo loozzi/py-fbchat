@@ -21,7 +21,7 @@ class Message:
         files: Iterable[Tuple[str, str]] = None,
         reply_to_id: str = None,
         type: str = "user",
-    ) -> requests.Response:
+    ) -> Tuple[str, str]:
         data = {}
         data["action_type"] = "ma-type:user-generated-message"
         if text is not None:
@@ -54,18 +54,18 @@ class Message:
 
         return self.client.session._do_send_request(data)
 
-    def send_emoji(self, emoji: str, size: Any) -> requests.Response:
+    def send_emoji(self, emoji: str, size: Any) -> Tuple[str, str]:
         pass
 
-    def send_sticker(self, sticker_id: str) -> requests.Response:
+    def send_sticker(self, sticker_id: str) -> Tuple[str, str]:
         pass
 
-    def send_files(self, files: Any, message: str) -> requests.Response:
+    def send_files(self, files: Any, message: str) -> Tuple[str, str]:
         return self.send_text(text=message, files=files)
 
     def reply_reaction(
         self, message_id: str, reaction: str, action: ReactionType = ReactionType.ADD
-    ) -> requests.Response:
+    ) -> dict:
         data = {}
         data["variables"] = json.dumps(
             {
@@ -87,4 +87,14 @@ class Message:
             "https://www.facebook.com/webgraphql/mutation/",
             data=data,
             as_graphql=0,
+        )
+
+    def unsend(self, message_id: str) -> dict | requests.Response:
+        data = {}
+        data["message_id"] = message_id
+
+        return self.client.session._post(
+            "https://www.facebook.com/messaging/unsend_message/",
+            data=data,
+            as_graphql=False,
         )

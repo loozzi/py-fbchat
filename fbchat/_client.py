@@ -96,17 +96,24 @@ class Client:
 
         return q
 
-    def send_message(self, text: str, message: Any):
+    def send_message(self, text: str, message: Any) -> str:
         self.message.send_text(
             text=text, thread_id=message["userId"], type=message["type"]
         )
         return True
 
-    def reply_message(self, text: str, message: Any):
-        self.message.send_text(
+    def reply_message(self, text: str, message: Any) -> str:
+        return self.message.send_text(
             text=text,
             thread_id=message["userId"],
             reply_to_id=message["messageId"],
             type=message["type"],
         )
-        return True
+
+    def reply_reaction(self, reaction: str, message: str) -> dict:
+        return self.message.reply_reaction(
+            message_id=message["messageId"], reaction=reaction
+        )
+
+    def unsend_message(self, message_id: int | str) -> dict:
+        return self.message.unsend(message_id=str(message_id))
