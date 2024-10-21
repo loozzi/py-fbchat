@@ -10,6 +10,7 @@ from ._listen import Listen
 from ._session import Session
 from ._utils import generate_client_id, generate_session_id
 from .models._message import Message
+from .models._types import MessageType
 
 
 class Client:
@@ -96,24 +97,25 @@ class Client:
 
         return q
 
-    def send_message(self, text: str, message: Any) -> str:
-        self.message.send_text(
-            text=text, thread_id=message["userId"], type=message["type"]
-        )
-        return True
-
-    def reply_message(self, text: str, message: Any) -> str:
-        return self.message.send_text(
-            text=text,
-            thread_id=message["userId"],
-            reply_to_id=message["messageId"],
-            type=message["type"],
+    def send(
+        self,
+        thread_id: str,
+        message: MessageType,
+        type: str = "user",
+    ) -> dict:
+        return self.message.send(
+            thread_id=thread_id, reply_to_id=None, type=type, message=message
         )
 
-    def reply_reaction(self, reaction: str, message: str) -> dict:
-        return self.message.reply_reaction(
-            message_id=message["messageId"], reaction=reaction
+    def reply(
+        self, thread_id: str, message: MessageType, reply_to_id: str, type: str = "user"
+    ) -> dict:
+        return self.message.send(
+            thread_id=thread_id, reply_to_id=reply_to_id, type=type, message=message
         )
 
-    def unsend_message(self, message_id: int | str) -> dict:
+    def reaction(self, reaction: str, message_id: str) -> dict:
+        return self.message.reply_reaction(message_id=message_id, reaction=reaction)
+
+    def unsend(self, message_id: int | str) -> dict:
         return self.message.unsend(message_id=str(message_id))
