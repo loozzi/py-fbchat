@@ -185,6 +185,7 @@ class Session:
         response = self._post(
             "https://www.facebook.com/messaging/send/", data, as_graphql=False
         )
+        print(response)
         if isinstance(response, dict):
             message_ids = [
                 (action["message_id"], action["thread_fbid"])
@@ -197,3 +198,11 @@ class Session:
         else:
             print("No message IDs could be found", data=response)
             return None
+
+    def _post_payload(self, url: str, data: dict, files: None):
+        res = self._post(url, data, files)
+
+        try:
+            return res["payload"]
+        except KeyError:
+            raise Exception("No payload in response")

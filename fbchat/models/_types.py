@@ -43,14 +43,15 @@ class Sticker(MessageType):
 
 
 class Attachments(MessageType):
-    def __init__(self, files: Iterable[Tuple[str, str]]) -> None:
+    def __init__(self, files: Iterable[Tuple[str, str]], text: str = "") -> None:
         self.files = files
+        self.text = text
 
     def to_dict(self) -> dict:
         data = {}
         data["has_attachment"] = True
         for i, (file_id, mimetype) in enumerate(self.files):
-            data["{}s[{}]".format(mimetype, i)] = file_id
+            data["{}_ids[{}]".format(mimetype.split("/")[0], i)] = file_id
         return data
 
 

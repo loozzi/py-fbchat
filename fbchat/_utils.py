@@ -107,3 +107,14 @@ def generate_message_id(now: datetime.datetime, client_id: str) -> str:
     k = datetime_to_millis(now)
     l = int(random.random() * 4294967295)
     return "<{}:{}-{}@mail.projektitan.com>".format(k, l, client_id)
+
+
+def mimetype_to_key(mimetype: str) -> str:
+    if not mimetype:
+        return "file_id"
+    if mimetype == "image/gif":
+        return "gif_id"
+    x = mimetype.split("/")
+    if x[0] in ["video", "image", "audio"]:
+        return "%s_id" % x[0]
+    return "file_id"
