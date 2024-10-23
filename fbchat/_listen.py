@@ -102,7 +102,6 @@ class Listen:
         response = self.bodyResults
         response["body"] = message.get("body")
         response["timestamp"] = message["messageMetadata"]["timestamp"]
-        response["userId"] = message["messageMetadata"]["actorFbId"]
         response["messageId"] = message["messageMetadata"]["messageId"]
         response["replyToId"] = (
             message["messageMetadata"]["threadKey"].get("otherUserFbId")
@@ -114,6 +113,10 @@ class Listen:
             if message["messageMetadata"]["threadKey"].get("otherUserFbId") is not None
             else "thread"
         )
+        if response["type"] == "user":
+            response["userId"] = message["messageMetadata"]["actorFbId"]
+        else:
+            response["userId"] = message["messageMetadata"]["cid"]["conversationFbid"]
         try:
             if len(message["attachments"]) > 0:
                 try:
@@ -177,7 +180,8 @@ class Listen:
                     # open(".mqttMessage", "w", encoding="utf-8").write(
                     #     json.dumps(self.bodyResults, indent=5)
                     # )
-                    q.put(response)
+                    if response["userId"] != self.client.session._user_id:
+                        q.put(response)
 
             if "syncToken" in j and "firstDeltaSeqId" in j:
                 self.syncToken = j["syncToken"]

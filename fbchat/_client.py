@@ -1,14 +1,17 @@
 import json
 import queue
+import random
 import threading
-from typing import List
+from typing import Any, BinaryIO, Iterable, List, Sequence, Tuple
 
 import requests
 
 from ._auth import Auth
 from ._listen import Listen
 from ._session import Session
-from ._utils import generate_client_id, generate_session_id
+from ._utils import generate_client_id, generate_session_id, mimetype_to_key
+from .models._message import Message
+from .models._types import MessageType
 
 
 class Client:
@@ -17,6 +20,7 @@ class Client:
         self.auth = Auth(self.session)
         self.client_id = generate_client_id()
         self.session_id = generate_session_id()
+        self.message = Message(self)
 
     def get_session(self) -> requests.Session:
         return self.session.__session__
@@ -26,18 +30,15 @@ class Client:
             "viewer": self.session._user_id,
         }
 
-        response = self.session._post(
+        response_json = self.session._post(
             "https://www.facebook.com/chat/user_info_all", data=payload, as_graphql=0
         )
 
         users = []
-        if "for (;;);" in response.text:
-            response = response.text.replace("for (;;);", "")
-            response_json = json.loads(response)
-            for user in response_json["payload"].values():
-                if user["type"] not in ["user", "friend"] or user["id"] in ["0", 0]:
-                    continue
-                users.append(user)
+        for user in response_json["payload"].values():
+            if user["type"] not in ["user", "friend"] or user["id"] in ["0", 0]:
+                continue
+            users.append(user)
 
         return users
 
@@ -93,3 +94,58 @@ class Client:
         threading.Thread(target=main_event.listen, args=(q,)).start()
 
         return q
+
+    def send(
+        self,
+        thread_id: str,
+        message: MessageType,
+        type: str = "user",
+    ) -> dict:
+        return self.message.send(
+            thread_id=thread_id, reply_to_id=None, type=type, message=message
+        )
+
+    def reply(
+        self, thread_id: str, message: MessageType, reply_to_id: str, type: str = "user"
+    ) -> dict:
+        return self.message.send(
+            thread_id=thread_id, reply_to_id=reply_to_id, type=type, message=message
+        )
+
+    def reaction(self, reaction: str, message_id: str) -> dict:
+        return self.message.reply_reaction(message_id=message_id, reaction=reaction)
+
+    def unsend(self, message_id: int | str) -> dict:
+        return self.message.unsend(message_id=str(message_id))
+
+    def upload(
+        self, files: Iterable[Tuple[str, BinaryIO, str]], voice_clip: bool = False
+    ) -> Sequence[Tuple[str, str]]:
+        """
+        Upload files to Facebook.
+        files: A list of tuples containing a name, a file-like object and a mimetype.
+        voice_clip: Whether the file is a voice clip.
+
+        Returns a list of tuples containing the file ID and mimetype.
+        """
+
+        file_dict = {"upload_{}".format(i): file for i, file in enumerate(files)}
+
+        data = {
+            "voice_clip": voice_clip,
+        }
+
+        j = self.session._post_payload(
+            url="https://upload.facebook.com/ajax/mercury/upload.php",
+            data=data,
+            files=file_dict,
+        )
+
+        if len(j["metadata"]) != len(file_dict):
+            print(j["metadata"])
+            raise "Some files could not be uploaded"
+
+        return [
+            (str(item[mimetype_to_key(item["filetype"])]), item["filetype"])
+            for item in j["metadata"].values()
+        ]

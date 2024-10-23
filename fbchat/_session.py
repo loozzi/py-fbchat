@@ -1,9 +1,17 @@
+import json
 import random
-from typing import Any, Mapping
+from typing import Any, Mapping, Tuple
 
 import requests
 
-from ._utils import base36encode, session_factory
+from ._utils import (
+    base36encode,
+    datetime_to_millis,
+    generate_message_id,
+    generate_offline_threading_id,
+    now,
+    session_factory,
+)
 
 
 def client_id_factory() -> str:
@@ -140,13 +148,61 @@ class Session:
     def __set_cookies__(self, cookies: Mapping[str, str]) -> None:
         self.__session__.cookies.update(cookies)
 
-    def _post(self, url, data, files=None, as_graphql=None) -> requests.Response:
+    def _post(self, url, data, files=None, as_graphql=None) -> dict | requests.Response:
         data.update(self.get_params(require_graphql=as_graphql))
         try:
             r = self.__session__.post(url, data=data, files=files)
             r.encoding = "utf-8"
             if r.text is None or len(r.text) == 0:
                 raise Exception("Error when sending request: Got empty response")
+            if "for (;;);" in r.text:
+                response_json = json.loads(r.text.replace("for (;;);", ""))
+                if "error" in r:
+                    raise Exception("Error: {}".format(r["error"]))
+                return response_json
             return r
         except requests.RequestException as e:
             raise Exception(e)
+
+    def _do_send_request(self, data) -> Tuple[str, str]:
+        time_now = now()
+
+        offline_threading_id = generate_offline_threading_id()
+        data["client"] = "mercury"
+        data["author"] = "fbid:{}".format(self._user_id)
+        data["timestamp"] = datetime_to_millis(time_now)
+        data["timestamp_absolute"] = "Today"
+        data["source"] = "source:chat:web"
+        data["source_tags[0]"] = "source:chat"
+        data["client_thread_id"] = "root:{}".format(self._client_id)
+        data["offline_threading_id"] = offline_threading_id
+        data["message_id"] = offline_threading_id
+        data["threading_id"] = generate_message_id(time_now, self._client_id)
+        data["ephemeral_ttl_mode:"] = "0"
+        data["manual_retry_cnt"] = "0"
+        data["ui_push_phase"] = "V3"
+
+        response = self._post(
+            "https://www.facebook.com/messaging/send/", data, as_graphql=False
+        )
+        print(response)
+        if isinstance(response, dict):
+            message_ids = [
+                (action["message_id"], action["thread_fbid"])
+                for action in response["payload"]["actions"]
+                if "message_id" in action
+            ]
+            if len(message_ids) != 1:
+                print("Got multiple message ids' back: {}".format(message_ids))
+            return message_ids[0]
+        else:
+            print("No message IDs could be found", data=response)
+            return None
+
+    def _post_payload(self, url: str, data: dict, files: None):
+        res = self._post(url, data, files)
+
+        try:
+            return res["payload"]
+        except KeyError:
+            raise Exception("No payload in response")
