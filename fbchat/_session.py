@@ -95,12 +95,16 @@ class Session:
 
     def __get_requied_data__(self) -> None:
         __headers__ = {
-            "authority": "m.facebook.com",
-            "user-agent": "Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)\
-                Chrome/100.0.4896.127 Safari/537.36",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) \
+                Chrome/130.0.0.0 Safari/537.36",
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
         }
         response = self.__session__.get(
-            "https://m.facebook.com",
+            "https://www.facebook.com/me",
             headers=__headers__,
             timeout=60000,
             verify=True,
@@ -185,7 +189,6 @@ class Session:
         response = self._post(
             "https://www.facebook.com/messaging/send/", data, as_graphql=False
         )
-        print(response)
         if isinstance(response, dict):
             message_ids = [
                 (action["message_id"], action["thread_fbid"])
